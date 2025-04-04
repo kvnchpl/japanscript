@@ -19,35 +19,36 @@ try {
   // Recursive transformer
   function transform(node) {
     if (Array.isArray(node)) {
-      // Handle FunctionDeclaration
-      if (node.includes("関数") && node.includes("挨拶")) {
+      // Handle VariableDeclaration
+      if (node.includes("宣言") || node.includes("定義")) {
         return {
-          type: "FunctionDeclaration",
-          name: "挨拶",
-          params: ["名前"],
-          body: node.flatMap(transform).filter(Boolean)
+          type: "VariableDeclaration",
+          kind: node.includes("宣言") ? "let" : "var",
+          name: node[1], // Identifier
+          value: transform(node[3]) // Expression
         };
       }
-
-      // Handle CallExpression: 名前 を 表示
-      if (node.includes("を") && node.includes("表示")) {
+  
+      // Handle IfStatement
+      if (node.includes("なら")) {
         return {
-          type: "CallExpression",
-          callee: "表示",
-          args: ["名前"]
+          type: "IfStatement",
+          condition: transform(node[0]), // Expression
+          consequent: transform(node[2]), // Block
+          alternate: node.includes("他") ? transform(node[4]) : null // Optional Block
         };
       }
-
-      // Handle ReturnStatement: 名前 を 返却
-      if (node.includes("を") && node.includes("返却")) {
+  
+      // Handle LoopStatement
+      if (node.includes("繰返")) {
         return {
-          type: "ReturnStatement",
-          value: "名前"
+          type: "LoopStatement",
+          condition: transform(node[0]), // Expression
+          body: transform(node[2]) // Block
         };
       }
-
-      // Recursively check children
-      return node.map(transform).filter(Boolean);
+  
+      // Handle other cases...
     }
     return null;
   }
