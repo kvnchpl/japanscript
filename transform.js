@@ -1,5 +1,3 @@
-
-// transform.js
 const nearley = require("nearley");
 const grammar = require("./japanscript.js");
 
@@ -7,8 +5,8 @@ const parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
 
 const input = `
 関数 挨拶 ( 名前 ) {
-名前 を 表示
-名前 を 返却
+  名前 を 表示
+  名前 を 返却
 }
 `;
 
@@ -19,13 +17,23 @@ try {
   // Recursive transformer
   function transform(node) {
     if (Array.isArray(node)) {
+      // Handle FunctionDeclaration
+      if (node.includes("関数")) {
+        return {
+          type: "FunctionDeclaration",
+          name: node[1], // Function name
+          params: transform(node[3]), // Parameters
+          body: transform(node[5]), // Function body (Block)
+        };
+      }
+
       // Handle VariableDeclaration
       if (node.includes("宣言") || node.includes("定義")) {
         return {
           type: "VariableDeclaration",
           kind: node.includes("宣言") ? "let" : "var",
-          name: node[1], // Identifier
-          value: transform(node[3]) // Expression
+          name: node[1], // Variable name
+          value: transform(node[3]), // Assigned value
         };
       }
 
@@ -47,7 +55,7 @@ try {
           values: node[3], // Enum values
         };
       }
-      
+
       // Handle NewExpression
       if (node.includes("生成")) {
         return {
@@ -55,14 +63,14 @@ try {
           className: node[2], // Class name
         };
       }
-  
+
       // Handle IfStatement
       if (node.includes("なら")) {
         return {
           type: "IfStatement",
-          condition: transform(node[0]), // Expression
-          consequent: transform(node[2]), // Block
-          alternate: node.includes("他") ? transform(node[4]) : null // Optional Block
+          condition: transform(node[0]), // Condition
+          consequent: transform(node[2]), // Consequent block
+          alternate: node.includes("他") ? transform(node[4]) : null, // Optional alternate block
         };
       }
 
@@ -74,7 +82,7 @@ try {
           cases: transform(node[3]), // Pattern list
         };
       }
-      
+
       // Handle PatternCase
       if (node.includes("場合")) {
         return {
@@ -84,41 +92,72 @@ try {
           body: transform(node[node.includes("なら") ? 4 : 2]), // Block
         };
       }
-  
+
       // Handle LoopStatement
       if (node.includes("繰返")) {
         return {
           type: "LoopStatement",
-          condition: transform(node[0]), // Expression
-          body: transform(node[2]) // Block
+          condition: transform(node[0]), // Loop condition
+          body: transform(node[2]), // Loop body
         };
       }
-  
+
       // Handle TryCatchStatement
       if (node.includes("試み")) {
         return {
           type: "TryCatchStatement",
-          tryBlock: transform(node[1]), // Block
-          catchParam: node[4], // Identifier
-          catchBlock: transform(node[6]), // Block
+          tryBlock: transform(node[1]), // Try block
+          catchParam: node[4], // Catch parameter
+          catchBlock: transform(node[6]), // Catch block
         };
       }
+
+      // Handle CallExpression (e.g., 表示)
+      if (node.includes("を") && node.includes("表示")) {
+        return {
+          type: "CallExpression",
+          callee: "表示",
+          args: [transform(node[0])], // Argument
+        };
+      }
+
+      // Handle ReturnStatement
+      if (node.includes("を") && node.includes("返却")) {
+        return {
+          type: "ReturnStatement",
+          value: transform(node[0]), // Return value
+        };
+      }
+
+      // Recursively transform nested nodes
+      return node.map(transform).filter(Boolean);
     }
-    return null;
+
+    // Handle literals (e.g., numbers, strings, booleans)
+    if (typeof node === "string" || typeof node === "number" || typeof node === "boolean") {
+      return { type: "Literal", value: node };
+    }
+
+    // Handle identifiers
+    if (typeof node === "object" && node.type === "Identifier") {
+      return node;
+    }
+
+    // Unsupported node
+    throw new Error(`Unsupported node: ${JSON.stringify(node)}`);
   }
 
-  const ast = transform(result);
-
-// Utility: flatten and filter empty
-function clean(node) {
-  if (Array.isArray(node)) {
-    return node.flatMap(clean).filter(Boolean);
+  // Utility: Clean and flatten the AST
+  function clean(node) {
+    if (Array.isArray(node)) {
+      return node.flatMap(clean).filter(Boolean);
+    }
+    return node;
   }
-  return node;
-}
 
-console.log(JSON.stringify(clean(ast), null, 2));
+  // Transform and clean the AST
+  const ast = clean(transform(result));
+  console.log(JSON.stringify(ast, null, 2));
 } catch (e) {
   console.error("パースエラー:", e.message);
 }
-

@@ -1,21 +1,20 @@
-
-// interpreter.js
 const nearley = require("nearley");
 const grammar = require("./japanscript.js");
 
+// Parse the input code into an AST
 const parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
 
 const input = `
 関数 挨拶 ( 名前 ) {
-名前 を 表示
-名前 を 返却
+  名前 を 表示
+  名前 を 返却
 }
 `;
 
 parser.feed(input);
 const result = parser.results[0];
 
-// Transformer: extract AST
+// Transformer: Convert raw AST into structured AST
 function transform(node) {
   if (Array.isArray(node)) {
     // Handle FunctionDeclaration
@@ -70,16 +69,16 @@ function transform(node) {
     if (node.includes("を") && node.includes("返却")) {
       return {
         type: "ReturnStatement",
-        value: node[0], // Return value
+        value: transform(node[0]), // Return value
       };
     }
-    
 
     return node.map(transform).filter(Boolean);
   }
   return null;
 }
 
+// Clean up the AST
 function clean(node) {
   if (Array.isArray(node)) {
     return node.flatMap(clean).filter(Boolean);
@@ -92,8 +91,13 @@ const ast = clean(transform(result));
 // Simple runtime environment
 const env = {
   表示: (arg) => console.log(arg),
+  デバッグ: () => console.log(env),
+  長さ: (str) => str.length, // Get string length
+  結合: (str1, str2) => str1 + str2, // Concatenate strings
+  含む: (str, substr) => str.includes(substr), // Check if a string contains a substring
 };
 
+// Interpret the AST
 function interpret(ast, env = {}) {
   for (const node of ast) {
     switch (node.type) {
@@ -121,6 +125,10 @@ function interpret(ast, env = {}) {
         node.values.forEach((value, index) => {
           env[node.name][value] = index;
         });
+        break;
+
+      case "StaticMethodDeclaration":
+        env[node.className][node.name] = (...args) => interpret(node.body, { ...env, args });
         break;
 
       case "IfStatement":
@@ -157,17 +165,40 @@ function interpret(ast, env = {}) {
       case "ReturnStatement":
         return evaluate(node.value, env);
 
+      case "TypeCheck":
+        value = evaluate(node.value, env);
+        const type = node.typeName;
+        if (typeof value !== type) {
+          throw new Error(`Type error: Expected ${type}, got ${typeof value}`);
+        }
+        break;
+
       case "FunctionDeclaration":
         env[node.name] = node;
         break;
 
+      case "ThrowStatement":
+        throw new Error(evaluate(node.value, env));
+        break;
+      
       case "TryCatchStatement":
         try {
           interpret(node.tryBlock, env);
         } catch (error) {
-          const localEnv = { ...env, [node.catchParam]: error };
+          const localEnv = { ...env, [node.catchParam]: error.message };
           interpret(node.catchBlock, localEnv);
         }
+        break;
+
+      case "ImportStatement":
+        const moduleName = node.moduleName;
+        const modulePath = `./modules/${moduleName}.js`;
+        const moduleExports = require(modulePath);
+        Object.assign(env, moduleExports); // Merge module exports into the environment
+        break;
+
+      case "ExportStatement":
+        env[node.name] = evaluate(node.value, env); // Add the exported value to the environment
         break;
 
       default:
@@ -176,6 +207,7 @@ function interpret(ast, env = {}) {
   }
 }
 
+// Evaluate expressions
 function evaluate(node, env) {
   if (typeof node === "string") {
     return env[node]; // Variable lookup
