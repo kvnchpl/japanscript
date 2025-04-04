@@ -73,6 +73,7 @@ function transform(node) {
         value: node[0], // Return value
       };
     }
+    
 
     return node.map(transform).filter(Boolean);
   }
@@ -96,8 +97,30 @@ const env = {
 function interpret(ast, env = {}) {
   for (const node of ast) {
     switch (node.type) {
+      case "ClassDeclaration":
+        env[node.name] = {
+          type: "Class",
+          superClass: node.superClass ? env[node.superClass] : null,
+          body: node.body,
+        };
+        break;
+
+      case "NewExpression":
+        const classDef = env[node.className];
+        if (!classDef) throw new Error(`Class ${node.className} not found`);
+        const instance = { __proto__: classDef };
+        interpret(classDef.body, { ...env, 自身: instance });
+        return instance;
+
       case "VariableDeclaration":
         env[node.name] = evaluate(node.value, env);
+        break;
+
+      case "EnumDeclaration":
+        env[node.name] = {};
+        node.values.forEach((value, index) => {
+          env[node.name][value] = index;
+        });
         break;
 
       case "IfStatement":
@@ -105,6 +128,16 @@ function interpret(ast, env = {}) {
           interpret(node.consequent, env);
         } else if (node.alternate) {
           interpret(node.alternate, env);
+        }
+        break;
+
+      case "PatternMatching":
+        const value = evaluate(node.expression, env);
+        for (const patternCase of node.cases) {
+          if (matchPattern(value, patternCase.pattern, env)) {
+            interpret(patternCase.body, env);
+            break;
+          }
         }
         break;
 
@@ -126,6 +159,15 @@ function interpret(ast, env = {}) {
 
       case "FunctionDeclaration":
         env[node.name] = node;
+        break;
+
+      case "TryCatchStatement":
+        try {
+          interpret(node.tryBlock, env);
+        } catch (error) {
+          const localEnv = { ...env, [node.catchParam]: error };
+          interpret(node.catchBlock, localEnv);
+        }
         break;
 
       default:

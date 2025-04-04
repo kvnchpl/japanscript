@@ -43,6 +43,8 @@ TryCatchStatement -> "試み" _ Block _ "捕捉" _ "(" _ Identifier _ ")" _ Bloc
 ClassDeclaration -> "構造" _ Identifier _ Block
                   | "構造" _ Identifier _ "は" _ Identifier _ "を" _ "継承" _ Block
 
+NewExpression -> "生成" _ "(" _ Identifier _ ")"
+
 // Enum Declaration
 EnumDeclaration -> "列挙" _ Identifier _ "{" _ EnumList _ "}"
 
@@ -57,7 +59,18 @@ PatternList -> Pattern
 
 Pattern -> Expression _ "場合" _ ":" _ Block
          | Expression _ "場合" _ Expression _ "なら" _ ":" _ Block
+         | ObjectPattern _ "場合" _ ":" _ Block
+         | ArrayPattern _ "場合" _ ":" _ Block
          | "他" _ ":" _ Block
+
+ObjectPattern -> "{" _ ObjectPatternList _ "}"
+ObjectPatternList -> Identifier _ ":" _ Identifier
+                   | ObjectPatternList _ "," _ Identifier _ ":" _ Identifier
+
+ArrayPattern -> "[" _ ArrayPatternList _ "]"
+ArrayPatternList -> Identifier
+                  | ArrayPatternList _ "," _ Identifier
+
 
 // Block
 Block -> "{" _ StatementList _ "}"
