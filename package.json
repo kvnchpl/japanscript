@@ -1,0 +1,16 @@
+{
+  "name": "japanscript",
+  "version": "1.0.0",
+  "description": "",
+  "main": "japanscript.js",
+  "dependencies": {
+    "nearley": "^2.20.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
